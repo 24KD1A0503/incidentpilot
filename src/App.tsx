@@ -31,17 +31,13 @@ function IncidentPilot() {
   const [threadId] = useState(() => crypto.randomUUID());
 
   const [approved, setApproved] = useState(false);
+  const [planRejected, setPlanRejected] = useState(false);
   const [running, setRunning] = useState(false);
   const [demoStep, setDemoStep] =
     useState("Waiting for approval");
   const [demoComplete, setDemoComplete] =
     useState(false);
 
-  /*
-   * These are the real application tools exposed to Distri.
-   * The scripted demo uses the same underlying application
-   * actions and validation layer.
-   */
   const tools = createIncidentTools({
     getIncident,
     createTask,
@@ -62,7 +58,11 @@ function IncidentPilot() {
   const plan = getDemoPlan();
 
   async function handleApproval() {
-    if (running || demoComplete) {
+    if (
+      running ||
+      demoComplete ||
+      planRejected
+    ) {
       return;
     }
 
@@ -73,7 +73,7 @@ function IncidentPilot() {
       await runApprovedDemo(
         tools,
         setDemoStep,
-    );
+      );
 
       setDemoComplete(true);
       setDemoStep(
@@ -89,6 +89,39 @@ function IncidentPilot() {
     } finally {
       setRunning(false);
     }
+  }
+
+  function handleRejectPlan() {
+    if (
+      running ||
+      approved ||
+      demoComplete ||
+      planRejected
+    ) {
+      return;
+    }
+
+    setPlanRejected(true);
+
+    setDemoStep(
+      "Plan rejected by operator. No response actions were executed.",
+    );
+  }
+
+  function handleReviewPlan() {
+    if (
+      running ||
+      approved ||
+      demoComplete
+    ) {
+      return;
+    }
+
+    setPlanRejected(false);
+
+    setDemoStep(
+      "Waiting for approval",
+    );
   }
 
   return (
@@ -310,11 +343,13 @@ function IncidentPilot() {
                     fontSize: "22px",
                   }}
                 >
-                  {approved
-                    ? demoComplete
-                      ? "Execution complete"
-                      : "Executing approved plan"
-                    : "Waiting for human approval"}
+                  {planRejected
+                    ? "Plan rejected"
+                    : approved
+                      ? demoComplete
+                        ? "Execution complete"
+                        : "Executing approved plan"
+                      : "Waiting for human approval"}
                 </h2>
               </div>
 
@@ -325,11 +360,13 @@ function IncidentPilot() {
                   borderRadius: "50%",
                   marginTop: "7px",
                   background:
-                    demoComplete
-                      ? "#22c55e"
-                      : approved
-                        ? "#f59e0b"
-                        : "#3b82f6",
+                    planRejected
+                      ? "#ef4444"
+                      : demoComplete
+                        ? "#22c55e"
+                        : approved
+                          ? "#f59e0b"
+                          : "#3b82f6",
                 }}
               />
             </div>
@@ -355,6 +392,7 @@ function IncidentPilot() {
             gap: "20px",
           }}
         >
+          {/* RESPONSE PLAN */}
           <section
             style={{
               background: "white",
@@ -396,21 +434,58 @@ function IncidentPilot() {
                 </h2>
               </div>
 
-              {!approved && (
+              {!approved &&
+                !planRejected && (
+                  <span
+                    style={{
+                      padding:
+                        "6px 10px",
+                      borderRadius: "8px",
+                      background:
+                        "#fff7ed",
+                      color:
+                        "#c2410c",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    APPROVAL REQUIRED
+                  </span>
+                )}
+
+              {planRejected && (
                 <span
                   style={{
                     padding:
                       "6px 10px",
                     borderRadius: "8px",
                     background:
-                      "#fff7ed",
+                      "#fee2e2",
                     color:
-                      "#c2410c",
+                      "#b91c1c",
                     fontSize: "12px",
                     fontWeight: 800,
                   }}
                 >
-                  APPROVAL REQUIRED
+                  PLAN REJECTED
+                </span>
+              )}
+
+              {demoComplete && (
+                <span
+                  style={{
+                    padding:
+                      "6px 10px",
+                    borderRadius: "8px",
+                    background:
+                      "#dcfce7",
+                    color:
+                      "#166534",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                  }}
+                >
+                  COMPLETED
                 </span>
               )}
             </div>
@@ -442,11 +517,15 @@ function IncidentPilot() {
                       background:
                         approved
                           ? "#e8f7ee"
-                          : "#edf4ff",
+                          : planRejected
+                            ? "#fee2e2"
+                            : "#edf4ff",
                       color:
                         approved
                           ? "#16803c"
-                          : "#2563eb",
+                          : planRejected
+                            ? "#b91c1c"
+                            : "#2563eb",
                       display:
                         "flex",
                       alignItems:
@@ -460,7 +539,9 @@ function IncidentPilot() {
                   >
                     {approved
                       ? "✓"
-                      : index + 1}
+                      : planRejected
+                        ? "×"
+                        : index + 1}
                   </div>
 
                   <div
@@ -476,50 +557,157 @@ function IncidentPilot() {
               ),
             )}
 
-            <button
-  onClick={handleApproval}
-  disabled={running || demoComplete}
-  style={{
-    width: "100%",
-    marginTop: "20px",
-    border: "1px solid",
-    borderColor: demoComplete
-      ? "#bbf7d0"
-      : running
-        ? "#cbd5e1"
-        : "#1d4ed8",
-    borderRadius: "10px",
-    padding: "14px 16px",
-    background: demoComplete
-      ? "#dcfce7"
-      : running
-        ? "#e2e8f0"
-        : "#2563eb",
-    color: demoComplete
-      ? "#166534"
-      : running
-        ? "#64748b"
-        : "#ffffff",
-    fontWeight: 800,
-    fontSize: "14px",
-    cursor:
-      running || demoComplete
-        ? "default"
-        : "pointer",
-    boxShadow:
-      !running && !demoComplete
-        ? "0 4px 12px rgba(37, 99, 235, 0.18)"
-        : "none",
-    transition:
-      "transform 0.15s ease, box-shadow 0.15s ease",
-  }}
->
-  {demoComplete
-    ? "✓ Plan Executed"
-    : running
-      ? "Executing approved plan..."
-      : "Approve Plan & Execute"}
-</button>
+            {/* APPROVAL ACTIONS */}
+            {!approved &&
+              !planRejected && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "1fr 1fr",
+                    gap: "10px",
+                    marginTop: "20px",
+                  }}
+                >
+                  <button
+                    onClick={handleApproval}
+                    disabled={running}
+                    style={{
+                      border:
+                        "1px solid #1d4ed8",
+                      borderRadius:
+                        "10px",
+                      padding:
+                        "14px 16px",
+                      background:
+                        running
+                          ? "#e2e8f0"
+                          : "#2563eb",
+                      color:
+                        running
+                          ? "#64748b"
+                          : "#ffffff",
+                      fontWeight: 800,
+                      fontSize:
+                        "14px",
+                      cursor:
+                        running
+                          ? "default"
+                          : "pointer",
+                      boxShadow:
+                        running
+                          ? "none"
+                          : "0 4px 12px rgba(37, 99, 235, 0.18)",
+                    }}
+                  >
+                    {running
+                      ? "Executing..."
+                      : "✓ Approve & Execute"}
+                  </button>
+
+                  <button
+                    onClick={
+                      handleRejectPlan
+                    }
+                    disabled={running}
+                    style={{
+                      border:
+                        "1px solid #fecaca",
+                      borderRadius:
+                        "10px",
+                      padding:
+                        "14px 16px",
+                      background:
+                        "#ffffff",
+                      color:
+                        "#b91c1c",
+                      fontWeight: 800,
+                      fontSize:
+                        "14px",
+                      cursor:
+                        running
+                          ? "default"
+                          : "pointer",
+                    }}
+                  >
+                    ✕ Reject Plan
+                  </button>
+                </div>
+              )}
+
+            {/* REJECTED STATE */}
+            {planRejected && (
+              <>
+                <div
+                  style={{
+                    marginTop: "20px",
+                    padding: "14px",
+                    borderRadius: "10px",
+                    background: "#fff7ed",
+                    border:
+                      "1px solid #fed7aa",
+                    color: "#9a3412",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>
+                    No response actions were executed.
+                  </strong>
+                  <br />
+                  The operator rejected the proposed
+                  response plan before execution.
+                </div>
+
+                <button
+                  onClick={
+                    handleReviewPlan
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: "12px",
+                    border:
+                      "1px solid #cbd5e1",
+                    borderRadius: "10px",
+                    padding:
+                      "12px 16px",
+                    background:
+                      "#ffffff",
+                    color:
+                      "#334155",
+                    fontWeight: 800,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Review Plan Again
+                </button>
+              </>
+            )}
+
+            {/* COMPLETED STATE */}
+            {demoComplete && (
+              <button
+                disabled
+                style={{
+                  width: "100%",
+                  marginTop: "20px",
+                  border:
+                    "1px solid #bbf7d0",
+                  borderRadius: "10px",
+                  padding:
+                    "14px 16px",
+                  background:
+                    "#dcfce7",
+                  color:
+                    "#166534",
+                  fontWeight: 800,
+                  fontSize: "14px",
+                }}
+              >
+                ✓ Plan Executed
+              </button>
+            )}
 
             <p
               style={{
@@ -533,10 +721,15 @@ function IncidentPilot() {
                   "10px 0 0",
               }}
             >
-             Approval required — IncidentPilot will not execute these actions until you approve the plan.
+              {planRejected
+                ? "Human approval was not granted, so IncidentPilot did not execute the plan."
+                : demoComplete
+                  ? "The approved plan was executed through the application's validated tool layer."
+                  : "Approval required — IncidentPilot will not execute these actions until you approve the plan."}
             </p>
           </section>
 
+          {/* TIMELINE */}
           <section
             style={{
               background: "white",
@@ -869,10 +1062,6 @@ function IncidentPilot() {
               </div>
             </div>
 
-            {/* Only show the live Distri Chat
-                AFTER the deterministic demo.
-                This prevents the cloud agent from
-                racing the scripted workflow. */}
             {demoComplete &&
               agent && (
                 <div
@@ -960,6 +1149,10 @@ function App() {
       config={{
         baseUrl:
           "https://api.distri.dev",
+
+        // IMPORTANT:
+        // Put the same Public Client ID that is
+        // currently in your existing App.tsx here.
         clientId:
           "dpc_FDeJ8XR9c13kzJPt0L73wEOYWot73rTj",
       }}
